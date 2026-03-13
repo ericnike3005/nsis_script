@@ -7,31 +7,31 @@ import requests
 
 app = FastAPI()
 
-# 1. AI 설정 (사용자님의 키 적용)
+# 1. AI 설정 (보안을 위해 API 키는 향후 환경변수(.env)로 관리하시는 것을 추천합니다)
 client = genai.Client(api_key="AIzaSyBXNeUTagryt1qCVpw0Ulg4w9Hxfdm6khU")
 
 def get_exchange_rate():
     """실시간 환율 수집 (백업 경로 추가)"""
     try:
-        # 첫 번째 경로
         url = "https://open.er-api.com/v6/latest/USD"
-        response = requests.get(url, timeout=5)
+        response = requests.get(url, timeout=3) # 타임아웃 3초로 단축
         return response.json()['rates']['KRW']
     except:
         try:
-            # 두 번째 경로 (백업)
             url = "https://api.exchangerate-api.com/v4/latest/USD"
-            response = requests.get(url, timeout=5)
+            response = requests.get(url, timeout=3)
             return response.json()['rates']['KRW']
         except:
-            return 1420.0 # 둘 다 실패 시 최근 평균 환율 적용
+            return 1420.0
 
+# [핵심 개선] async def -> def 로 변경하여 동기 라이브러리 충돌 방지
 @app.get("/check/{symbol}", response_class=HTMLResponse)
-async def check_market(symbol: str):
-    # (1) 데이터 수집: Bybit는 클라우드 서버 차단이 덜합니다.
+def check_market(symbol: str):
+    
+    # (1) 데이터 수집: 예외 처리 및 타임아웃 명시
     try:
-        # 바이낸스 대신 바이비트로 교체
-        exchange = ccxt.bybit() 
+        # 무한 로딩 방지를 위해 3초 타임아웃 설정
+        exchange = ccxt.bybit({'timeout': 3000}) 
         ticker = exchange.fetch_ticker(f"{symbol.upper()}/USDT")
         price_usdt = ticker['last']
         
@@ -42,22 +42,41 @@ async def check_market(symbol: str):
         display_krw = f"{int(price_krw):,} 원"
         display_rate = f"실시간 환율 적용: 1$ = {krw_rate:,.1f}원"
     except Exception as e:
-        display_usdt, display_krw, display_rate = "거래소 연결 지연", "-", f"오류: {str(e)[:20]}"
+        display_usdt, display_krw, display_rate = "거래소 연결 지연", "-", "일시적인 네트워크 오류"
 
-    # (2) 뉴스 수집
-    feed = feedparser.parse("https://cointelegraph.com/rss/tag/security")
-    news_title = feed.entries[0].title if feed.entries else "뉴스 수집 중..."
-    news_link = feed.entries[0].link if feed.entries else "#"
-
-    # (3) AI 분석 (에러 처리 강화)
+    # (2) 뉴스 수집 (RSS)
     try:
-        prompt = f"뉴스: {news_title}\n이게 {symbol} 가격에 위험한가요? 리스크 점수(1~10)와 이유 1줄."
-        response = client.models.generate_content(model="gemini-2.0-flash-lite", contents=prompt)
-        ai_result = response.text.replace("\n", "<br>")
+        feed = feedparser.parse("https://cointelegraph.com/rss/tag/security")
+        original_news_title = feed.entries[0].title if feed.entries else "뉴스 수집 중..."
+        news_link = feed.entries[0].link if feed.entries else "#"
     except:
-        ai_result = "AI가 현재 뉴스 분석을 준비 중입니다. 잠시 후 새로고침 해주세요."
+        original_news_title = "뉴스 데이터를 불러올 수 없습니다."
+        news_link = "#"
 
-    # (4) 디자인 (기존 유지)
+    # (3) AI 번역 및 분석 (최신 모델 적용 및 2단계 분리)
+    translated_title = original_news_title
+    ai_result = "AI가 현재 분석을 준비 중입니다."
+    
+    try:
+        if original_news_title not in ["뉴스 수집 중...", "뉴스 데이터를 불러올 수 없습니다."]:
+            # Step A: 영어 뉴스 제목을 한글로 번역
+            trans_response = client.models.generate_content(
+                model="gemini-2.0-flash", 
+                contents=f"다음 영문 뉴스 제목을 한국어로 자연스럽게 번역해. 딱 번역된 문장만 출력해:\n{original_news_title}"
+            )
+            translated_title = trans_response.text.strip()
+            
+            # Step B: 번역된 한글 제목으로 리스크 분석
+            risk_prompt = f"뉴스 제목: {translated_title}\n이 뉴스가 {symbol} 가격에 위험한 요소인가요? 리스크 점수(1~10)와 이유를 1줄로 명확하게 작성해주세요."
+            risk_response = client.models.generate_content(
+                model="gemini-2.0-flash", 
+                contents=risk_prompt
+            )
+            ai_result = risk_response.text.replace("\n", "<br>")
+    except Exception as e:
+        ai_result = f"AI 연동 지연 중입니다. 잠시 후 새로고침 해주세요."
+
+    # (4) 디자인 (기존 유지, 뉴스 제목 변수만 교체)
     html_content = f"""
     <html>
         <head>
@@ -114,7 +133,7 @@ async def check_market(symbol: str):
                     </div>
                     <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-2xl flex flex-col justify-center">
                         <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-3">최신 보안 뉴스</p>
-                        <a href="{news_link}" target="_blank" class="text-lg font-semibold text-slate-200 hover:text-amber-400 transition leading-tight">{news_title} 🔗</a>
+                        <a href="{news_link}" target="_blank" class="text-lg font-semibold text-slate-200 hover:text-amber-400 transition leading-tight">{translated_title} 🔗</a>
                     </div>
                 </div>
 

@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+feedparser
+google-genai
+ccxt
+requests

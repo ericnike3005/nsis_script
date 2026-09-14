@@ -22,7 +22,7 @@ def delete_exes(log_message):
     deleted_count = 0
 
     for file in files:
-        # 파일 이름이 'DRM_'로 시작하고 '_Patch_'를 포함하며 '.exe'로 끝나는 것만 골라냅니다.
+        # 파일 이름이 'DRM_'로 시작하고 '_Patch_'를 포함하며 '.exe'로 끝나는 것만 적용
         if file.startswith("DRM_") and "_Patch_" in file and file.endswith(".exe"):
             full_path = os.path.join(base_dir, file)
             try:
@@ -43,10 +43,7 @@ def delete_exes(log_message):
 
 # ---------------- 커스텀 다중 대상 빌드 (SetOutPath 직접 입력) ---------------- #
 def Custom_Multi_Build(targets, Show_Mode, log_message, is_reboot):
-    """
-    targets: [{"label": 모듈명, "out_path": 사용자가 입력한 SetOutPath, "files": [소스파일 절대경로, ...]}, ...]
-    항목마다 SetOutPath를 바꿔가며 파일을 설치하는 하나의 NSIS 패치를 생성합니다.
-    """
+ 
     install_mode = Show_Mode.get()
     base_dir = get_base_dir()
 
@@ -57,38 +54,57 @@ def Custom_Multi_Build(targets, Show_Mode, log_message, is_reboot):
     name_part = targets[0]["label"] if len(targets) == 1 else "MultiTarget"
 
     section_blocks = ""
+    service_restart_blocks = ""
+    restarted_servcies = set()
     all_files_display = []
 
     for t in targets:
-        out_path = t["out_path"]
-        section_blocks += f'\n        SetOutPath "{out_path}"\n'
-        for f in t["files"]:
+        for fe in t["files"]:
+            f = fe["path"]
+            out_path = fe["out_path"]
             fname = os.path.basename(f)
             all_files_display.append(f"[{t['label']}] {fname}")
 
+            section_blocks += f'\n        SetOutPath "{out_path}"\n'
             section_blocks += (
-                f'\n        DetailPrint "[{t["label"]}] {fname} 백업 및 교체 중..."\n'
+                f'\n      DetailPrint "[{t["label"]}] {fname} 백업 및 교체 중..."\n'
+                f'        Delete "{out_path}\\{fname}_old"\n'
                 f'        Rename "{out_path}\\{fname}" "{out_path}\\{fname}_old"\n'
                 f'        Delete /REBOOTOK "{out_path}\\{fname}_old"\n'
                 f'        File "{f}"\n'
             )
 
-            
             if fname.lower() in config.TARGET_PROCESSES:
                 exe_full_path = f"{out_path}\\{fname}"
                 section_blocks += (
                     f'\n        nsExec::Exec \'"{exe_full_path}" -stop\'\n'
                     f'        nsExec::Exec \'"{exe_full_path}" -remove\'\n'
-                    f'        Sleep 3000\n'
-                    f'        nsExec::Exec \'"{exe_full_path}" -install\'\n'
-                    f'        Sleep 3000\n'
-                    f'        nsExec::Exec \'"{exe_full_path}" -start\'\n'
+
                 )
+                if exe_full_path not in restarted_servcies:
+                    restarted_servcies.add(exe_full_path)
+                    service_restart_blocks += (
+                        f'\n      DetailPrint "[{t["label"]}] {fname} [서비스 재기동] {fname}"\n'
+                        f'        nsExec::Exec \'"{exe_full_path}" -install\'\n'
+                        f'        Sleep 3000\n'
+                        f'        nsExec::Exec \'"{exe_full_path}" -start\'\n'
+                    )
+
+                elif fname.lower() in config.REG_TARGET_DLLS:
+                    dll_full_path = f"{out_path}\\{fname}"
+                    section_blocks += (
+                        f'\n      DetailPrint "[{t["label"]}] {fname} 레지스트리 재등록 중..."\n'
+                        f'        nsExec::Exec \'taskkill /f /im explorer.exe\'\n'
+                        f'        UnRegDLL "{dll_full_path}"\n'
+                        f'        Sleep 2000\n'
+                        f'        RegDLL "{dll_full_path}"\n'
+                        f'        Exec "explorer.exe"\n'
+                    )
 
     silent_directive = "SilentInstall silent" if install_mode == "silent" else ""
     msg_box = "" if install_mode == "silent" else f'MessageBox MB_OK "{name_part} 패치가 완료되었습니다!"'
-    current_time = datetime.now().strftime("%Y%m%d")
-    final_exe_name = f"DRM_{name_part}_Patch_({install_mode})_{current_time}.{config.file_extension}"
+    current_time = datetime.now().strftime("%y%m%d_%H%M%S")
+    final_exe_name = f"DRM_Patch({install_mode})_{current_time}.{config.file_extension}"
 
     if is_reboot:
         reboot_command = """
@@ -112,6 +128,8 @@ def Custom_Multi_Build(targets, Show_Mode, log_message, is_reboot):
 
     Section "PatchSection" SEC01
         {section_blocks}
+
+        {service_restart_blocks}
 
         {msg_box}
         {reboot_command}

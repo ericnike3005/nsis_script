@@ -33,8 +33,6 @@ def browse_and_add_target():
     if not selected_dir:
         return
 
-    #save_last_dir(selected_dir)
-
     selected = []
     for root, dirs, files in os.walk(selected_dir):
         for fname in files:
@@ -51,8 +49,8 @@ def browse_and_add_target():
 
     render_patch_targets()
     log_message(f"  → [추가됨] '{result['label']}' ({len(result['files'])}개 파일)")
-    for fe in result["files"]:
-        log_message(f"      - {os.path.basename(fe['path'])} → {fe['out_path']} ({fe['source']})")
+    #for fe in result["files"]:
+    #    log_message(f"      - {os.path.basename(fe['path'])} → {fe['out_path']} ({fe['source']})")
     setoutpath_var.set("")
 
 def clear_patch_targets():
@@ -94,25 +92,6 @@ def execute_build():
         for line in traceback.format_exc().splitlines():
             log_message(f"      {line}")
 
-
-#def load_last_dir():
-    path = os.path.join(builder.get_base_dir(), config.LAST_DIR_FILE)
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                saved = f.read().strip()
-            if saved and os.path.isdir(saved):
-                return saved
-        except Exception:
-            pass
-    return None
-
-#def save_last_dir(path):
-    try:
-        with open(os.path.join(builder.get_base_dir(), config.LAST_DIR_FILE), "w", encoding="utf-8") as f:
-            f.write(path)
-    except Exception:
-        pass
 
 # ---------------- UI 구성 부분 ---------------- #
 app = tk.Tk()

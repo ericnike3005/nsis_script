@@ -23,7 +23,7 @@ def delete_exes(log_message):
 
     for file in files:
         # 파일 이름이 'DRM_'로 시작하고 '_Patch_'를 포함하며 '.exe'로 끝나는 것만 적용
-        if file.startswith("DRM_") and "_Patch_" in file and file.endswith(".exe"):
+        if file.startswith("DRM_") and "Patch(" in file and file.endswith(".exe"):
             full_path = os.path.join(base_dir, file)
             try:
                 os.remove(full_path)
@@ -90,7 +90,7 @@ def Custom_Multi_Build(targets, Show_Mode, log_message, is_reboot):
                         f'        nsExec::Exec \'"{exe_full_path}" -start\'\n'
                     )
 
-                elif fname.lower() in config.REG_TARGET_DLLS:
+            if fname.lower() in config.REG_TARGET_DLLS:
                     dll_full_path = f"{out_path}\\{fname}"
                     section_blocks += (
                         f'\n      DetailPrint "[{t["label"]}] {fname} 레지스트리 재등록 중..."\n'
@@ -147,7 +147,6 @@ def Custom_Multi_Build(targets, Show_Mode, log_message, is_reboot):
         if result.returncode == 0:
             file_list = ", ".join(all_files_display)
             log_message(f"  → [성공] {final_exe_name} 생성 완료!")
-            log_message(f"  → [포함된 파일] {file_list}", "blue_text")
         else:
             log_message(f"  → [오류] 컴파일 실패:\n{result.stderr}")
 

@@ -3,7 +3,7 @@
 
 # ==========================================
 # [설정] 빌드 버전 관리
-APP_VERSION = "v26.09.11.01"
+APP_VERSION = "v26.09.14.01"
 # ==========================================
 
 file_extension = "exe"
@@ -19,10 +19,10 @@ NSIS_ICON = r"${NSISDIR}\Contrib\Graphics\Icons\modern-install-colorful.ico"
 NSI_ENCODING = "ansi"  # NSIS 스크립트 파일 저장 인코딩 (Windows 시스템 기본 코드페이지)
 
 # 서비스 재기동 목록
-TARGET_PROCESSES = {"dsh_service64.exe", "imgsf50svc.exe", "mawssvc.exe", "PolicyServerService.exe"}
+TARGET_PROCESSES = {"DSH_Service64.exe", "IMGSF50svc.exe", "mawssvc.exe", "PolicyServerService.exe"}
 _process_list_str = ", ".join(sorted(TARGET_PROCESSES))
 
-REG_TARGET_DLLS = {"AcapIconMgr.dll","AcapIconMgr64","MAShlMgr.dll","MAShlMgr64.dll"}
+REG_TARGET_DLLS = {"AcapIconMgr.dll","AcapIconMgr64.dll","MAShlMgr.dll","MAShlMgr64.dll"}
 _dll_list_str = ", ".join(sorted(REG_TARGET_DLLS))
 
 # ---------------- 창 크기 / 위치 ----------------
@@ -30,7 +30,7 @@ WINDOW_WIDTH = 540
 WINDOW_MARGIN_RIGHT = 80    
 WINDOW_MARGIN_TOP = 50      
 WINDOW_HEIGHT = 850
-NOTICE_WRAPLENGTH = 500     # 공지 문구 자동 줄바꿈 폭(px). WINDOW_WIDTH보다 넉넉히
+NOTICE_WRAPLENGTH = 450     # 공지 문구 자동 줄바꿈 폭(px). WINDOW_WIDTH보다 넉넉히
 
 # ---------------- 색상 ----------------
 COLOR_ADD_BTN = "#d1e7dd"
